@@ -75,12 +75,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
 .dday-empty{font-size:12px;color:#bbb;text-align:center;padding:12px 0}
 
 /* 메모장 */
-.memo-area{width:100%;border:1px solid #e8e8e6;border-radius:8px;padding:10px;font-size:13px;line-height:1.6;resize:none;height:120px;font-family:inherit;color:#1a1a1a;background:#fafaf8;outline:none}
-.memo-area:focus{border-color:#378add;background:#fff}
-.memo-footer{display:flex;justify-content:space-between;align-items:center;margin-top:6px}
-.memo-hint{font-size:11px;color:#bbb}
-.memo-save-btn{font-size:12px;padding:5px 14px;border-radius:6px;border:none;background:#378add;color:#fff;cursor:pointer;font-family:inherit}
-.memo-save-btn:hover{background:#2a6db8}
+.memo-who{display:flex;gap:6px;flex-wrap:wrap}
+.memo-who-btn{padding:5px 12px;border-radius:20px;border:1.5px solid;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;opacity:.35;background:#fff;font-family:inherit}
+.memo-who-btn.active{opacity:1}
+.memo-input{flex:1;border:1px solid #e8e8e6;border-radius:8px;padding:9px 10px;font-size:13px;line-height:1.5;resize:none;font-family:inherit;color:#1a1a1a;background:#fafaf8;outline:none;min-width:0}
+.memo-input:focus{border-color:#378add;background:#fff}
+.memo-send-btn{padding:0 14px;border-radius:8px;border:none;background:#378add;color:#fff;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;white-space:nowrap;height:100%;min-height:40px}
+.memo-send-btn:hover{background:#2a6db8}
+.memo-feed{display:flex;flex-direction:column;gap:8px;margin-top:12px;max-height:260px;overflow-y:auto}
+.memo-bubble-wrap{display:flex;flex-direction:column;gap:2px}
+.memo-bubble-name{font-size:11px;font-weight:600;padding:0 4px}
+.memo-bubble{display:inline-block;max-width:85%;padding:8px 12px;border-radius:12px;font-size:13px;line-height:1.5;word-break:break-word;position:relative}
+.memo-bubble-time{font-size:10px;color:#bbb;padding:0 4px;align-self:flex-end}
+.memo-bubble-row{display:flex;align-items:flex-end;gap:6px}
+.memo-del{border:none;background:none;color:#ccc;cursor:pointer;font-size:14px;padding:0 2px;line-height:1;opacity:0}
+.memo-bubble-row:hover .memo-del{opacity:1}
+.memo-empty{font-size:12px;color:#bbb;text-align:center;padding:16px 0}
 
 /* 이번 달 일정 목록 */
 .evlist-section{grid-column:1/-1}
@@ -201,12 +211,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
 
     <!-- 가족 메모장 -->
     <div class="section-card">
-      <div class="section-title">📝 가족 메모장</div>
-      <textarea class="memo-area" id="memoArea" placeholder="가족 모두가 볼 수 있는 메모를 남겨보세요..."></textarea>
-      <div class="memo-footer">
-        <span class="memo-hint" id="memoHint"></span>
-        <button class="memo-save-btn" onclick="saveMemo()">저장</button>
+      <div class="section-title">📝 가족 메모장 <span id="memoMonthLabel" style="font-weight:400;color:#aaa;font-size:12px"></span></div>
+      <!-- 구성원 선택 -->
+      <div class="memo-who" id="memoWho"></div>
+      <!-- 메모 입력 -->
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <textarea class="memo-input" id="memoInput" placeholder="메모를 입력하세요..." rows="2"></textarea>
+        <button class="memo-send-btn" onclick="sendMemo()">등록</button>
       </div>
+      <!-- 메모 피드 -->
+      <div class="memo-feed" id="memoFeed"></div>
     </div>
 
     <!-- 이번 달 일정 목록 -->
@@ -387,17 +401,18 @@ function startApp(cfg){
       document.getElementById('config-screen').classList.add('show');
     });
 
-    // 메모 실시간 구독
-    onValue(ref(db,'memo'),snap=>{
-      const data=snap.val();
-      const area=document.getElementById('memoArea');
-      if(data&&data.text!==undefined){
-        // 현재 포커스 중이면 덮어쓰지 않음
-        if(document.activeElement!==area) area.value=data.text;
-        const d=new Date(data.updatedAt||0);
-        document.getElementById('memoHint').textContent=data.updatedBy?`${data.updatedBy} · ${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`:'';
-      }
-    });
+    // 메모 실시간 구독 (월별)
+    const memoMonthKey=()=>`memo_${cur.getFullYear()}_${String(cur.getMonth()+1).padStart(2,'0')}`;
+    window._memoUnsub=null;
+    window.subscribeMemo=function(){
+      if(window._memoUnsub) window._memoUnsub();
+      const key=memoMonthKey();
+      document.getElementById('memoMonthLabel').textContent=`${cur.getFullYear()}년 ${cur.getMonth()+1}월`;
+      window._memoUnsub=onValue(ref(db,key),snap=>{
+        renderMemoFeed(snap.val()||{});
+      });
+    };
+    window.subscribeMemo();
   }catch(e){
     document.getElementById('loading').style.display='none';
     toast('오류: '+e.message);
@@ -406,7 +421,7 @@ function startApp(cfg){
 }
 
 // ── 렌더
-function renderAll(){renderMembersBar();renderGrid();renderDday();renderEvList();}
+function renderAll(){renderMembersBar();renderGrid();renderDday();renderEvList();renderMemoWho();}
 
 function renderMembersBar(){
   document.getElementById('membersBar').innerHTML=members.map(m=>`
@@ -587,19 +602,72 @@ function renderEvList(){
   }).join('');
 }
 
-// ── 메모 저장
-window.saveMemo=async function(){
-  const text=document.getElementById('memoArea').value;
-  // 마지막으로 수정한 구성원 추측 (첫 번째 활성 구성원)
-  const writer=[...activeMembers][0]||'가족';
+// ── 메모 구성원 선택
+let selectedMemoMember=''
+function renderMemoWho(){
+  const el=document.getElementById('memoWho');
+  if(!el||!members.length)return;
+  if(!selectedMemoMember||!members.find(m=>m.name===selectedMemoMember))
+    selectedMemoMember=members[0].name;
+  el.innerHTML=members.map(m=>`
+    <button class="memo-who-btn ${selectedMemoMember===m.name?'active':''}"
+      style="border-color:${m.color};color:${m.tc};background:${selectedMemoMember===m.name?m.bg:'#fff'}"
+      onclick="selectMemoMember('${m.name}')">${m.name}</button>`).join('');
+}
+window.selectMemoMember=function(name){
+  selectedMemoMember=name;
+  renderMemoWho();
+};
+
+// ── 메모 피드 렌더
+function renderMemoFeed(data){
+  const feed=document.getElementById('memoFeed');
+  if(!feed)return;
+  const items=Object.entries(data).sort(([,a],[,b])=>a.at-b.at);
+  if(!items.length){feed.innerHTML='<div class="memo-empty">이번 달 첫 메모를 남겨보세요 ✏️</div>';return;}
+  feed.innerHTML=items.map(([id,item])=>{
+    const m=getMember(item.who)||{color:'#888',bg:'#eee',tc:'#444'};
+    const d=new Date(item.at||0);
+    const timeStr=`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    return `<div class="memo-bubble-wrap">
+      <div class="memo-bubble-name" style="color:${m.color}">${item.who}</div>
+      <div class="memo-bubble-row">
+        <div class="memo-bubble" style="background:${m.bg};color:${m.tc}">${item.text.replace(/\n/g,'<br>')}</div>
+        <div class="memo-bubble-time">${timeStr}</div>
+        <button class="memo-del" onclick="delMemoItem('${id}')" title="삭제">×</button>
+      </div>
+    </div>`;
+  }).join('');
+  feed.scrollTop=feed.scrollHeight;
+}
+
+// ── 메모 등록
+window.sendMemo=async function(){
+  const text=document.getElementById('memoInput').value.trim();
+  if(!text){toast('메모를 입력해 주세요');return;}
+  if(!selectedMemoMember){toast('구성원을 선택해 주세요');return;}
+  const key=`memo_${cur.getFullYear()}_${String(cur.getMonth()+1).padStart(2,'0')}`;
   try{
-    await set(ref(db,'memo'),{text,updatedAt:Date.now(),updatedBy:writer});
-    toast('메모가 저장됐어요 ✓');
+    await push(ref(db,key),{who:selectedMemoMember,text,at:Date.now()});
+    document.getElementById('memoInput').value='';
   }catch(e){toast('저장 실패: '+e.message);}
 };
 
+// ── 메모 삭제
+window.delMemoItem=async function(id){
+  if(!confirm('이 메모를 삭제할까요?'))return;
+  const key=`memo_${cur.getFullYear()}_${String(cur.getMonth()+1).padStart(2,'0')}`;
+  try{await remove(ref(db,`${key}/${id}`));}
+  catch(e){toast('삭제 실패: '+e.message);}
+};
+
+// Enter키로 전송 (Shift+Enter는 줄바꿈)
+document.getElementById('memoInput').addEventListener('keydown',function(e){
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMemo();}
+});
+
 // ── 월 이동
-window.changeMonth=d=>{cur=new Date(cur.getFullYear(),cur.getMonth()+d,1);renderGrid();renderEvList();};
+window.changeMonth=d=>{cur=new Date(cur.getFullYear(),cur.getMonth()+d,1);renderGrid();renderEvList();window.subscribeMemo();};
 window.goToday=()=>{cur=new Date();renderGrid();renderEvList();};
 window.addEventListener('resize',()=>renderGrid());
 
