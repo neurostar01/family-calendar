@@ -253,27 +253,27 @@ function startApp(cfg){
     catch(e){ app=getApp('fam-cal'); }
     db=getDatabase(app,cfg.dbUrl);
 
-    let eventsReady=false;
-
-    // 구성원/설정 실시간 구독
+    // settings 먼저 읽고, 없으면 기본값 쓴 뒤 events 구독 시작
     onValue(ref(db,'settings'),snap=>{
       const s=snap.val();
       if(s&&s.members&&s.members.length>0){
         members=s.members;
         document.title=(s.familyName||'우리 가족')+' 달력';
+        activeMembers=new Set(members.map(m=>m.name));
+        renderAll();
       } else {
+        // Firebase에 settings가 없으면 기본값 저장
         members=DEFAULT_MEMBERS;
-        set(ref(db,'settings'),{familyName:cfg.familyName||'우리 가족',members:DEFAULT_MEMBERS});
+        activeMembers=new Set(members.map(m=>m.name));
         document.title=(cfg.familyName||'우리 가족')+' 달력';
+        set(ref(db,'settings'),{familyName:cfg.familyName||'우리 가족',members:DEFAULT_MEMBERS});
+        renderAll();
       }
-      activeMembers=new Set(members.map(m=>m.name));
-      if(eventsReady) renderAll();
     });
 
-    // 일정 실시간 구독
+    // events 실시간 구독
     onValue(ref(db,'events'),snap=>{
       allEvents=snap.val()||{};
-      eventsReady=true;
       renderAll();
       document.getElementById('loading').style.display='none';
       document.getElementById('main-app').style.display='block';
