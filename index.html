@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>우리 가족 달력</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f8f8f6;
+    --surface: #ffffff;
+    --border: rgba(0,0,0,0.1);
+    --border-strong: rgba(0,0,0,0.2);
+    --text: #1a1a1a;
+    --text-muted: #888;
+    --text-faint: #bbb;
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Noto Sans KR', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* Toast */
+  #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(40px); background: #1a1a1a; color: #fff; padding: 10px 20px; border-radius: 20px; font-size: 13px; opacity: 0; transition: all 0.3s; z-index: 999; pointer-events: none; }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* Layout */
+  .app { max-width: 800px; margin: 0 auto; padding: 20px 16px 60px; }
+
+  /* Header */
+  .top-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; gap: 12px; flex-wrap: wrap; }
+  .month-nav { display: flex; align-items: center; gap: 10px; }
+  .month-label { font-size: 20px; font-weight: 600; min-width: 120px; }
+  .nav-btn { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); width: 34px; height: 34px; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); transition: background 0.15s; }
+  .nav-btn:hover { background: #f0f0ee; }
+  .today-btn { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0 14px; height: 34px; cursor: pointer; font-size: 13px; color: var(--text-muted); }
+  .today-btn:hover { background: #f0f0ee; }
+
+  /* Members filter */
+  .members-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+  .m-pill { display: flex; align-items: center; gap: 5px; padding: 5px 12px; border-radius: 20px; border: 1.5px solid; font-size: 12px; font-weight: 500; cursor: pointer; transition: opacity 0.15s, transform 0.1s; user-select: none; }
+  .m-pill:active { transform: scale(0.96); }
+  .m-pill.off { opacity: 0.3; }
+  .m-dot { width: 7px; height: 7px; border-radius: 50%; }
+
+  /* Calendar grid */
+  .weekdays { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; margin-bottom: 4px; }
+  .wday { font-size: 11px; font-weight: 500; color: var(--text-muted); padding: 4px 0; }
+  .wday:first-child { color: #e04a4a; }
+  .wday:last-child { color: #378add; }
+
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+  .day-cell { min-height: 90px; background: var(--surface); border-radius: var(--radius-sm); padding: 6px 5px 5px; cursor: pointer; border: 1px solid var(--border); transition: border-color 0.15s; position: relative; }
+  .day-cell:hover { border-color: var(--border-strong); }
+  .day-cell.other { background: #f3f3f1; }
+  .day-cell.other .day-num { color: var(--text-faint); }
+  .day-cell.is-today .day-num { background: #378add; color: #fff; border-radius: 50%; }
+  .day-num { font-size: 12px; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); margin-bottom: 3px; font-weight: 500; }
+  .day-cell:nth-child(7n+1) .day-num:not(.is-today) { color: #e04a4a; }
+  .day-cell:nth-child(7n) .day-num:not(.is-today) { color: #378add; }
+
+  .ev-chip { font-size: 10px; font-weight: 500; padding: 2px 5px; border-radius: 3px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; display: block; }
+  .ev-chip:hover { filter: brightness(0.93); }
+  .ev-more { font-size: 10px; color: var(--text-faint); padding-left: 4px; }
+
+  /* Modal overlay */
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 200; padding: 20px; }
+  .overlay.hidden { display: none; }
+
+  /* Modal box */
+  .modal { background: var(--surface); border-radius: var(--radius); padding: 22px; width: 100%; max-width: 380px; max-height: 90vh; overflow-y: auto; }
+  .modal h2 { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+  .field input, .field select, .field textarea {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+    font-size: 14px; color: var(--text); background: var(--surface); outline: none;
+    font-family: inherit;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus { border-color: #378add; box-shadow: 0 0 0 2px rgba(55,138,221,0.15); }
+  .field textarea { resize: none; height: 68px; line-height: 1.5; }
+  .repeat-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+  .repeat-row input[type=checkbox] { width: 15px; height: 15px; accent-color: #378add; }
+  .repeat-row label { font-size: 13px; color: var(--text); cursor: pointer; }
+  .repeat-row select { font-size: 12px; padding: 3px 6px; width: auto; }
+  .modal-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+  .btn { padding: 8px 18px; border-radius: var(--radius-sm); font-size: 13px; cursor: pointer; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font-family: inherit; }
+  .btn:hover { background: #f0f0ee; }
+  .btn.primary { background: #378add; color: #fff; border-color: #378add; }
+  .btn.primary:hover { background: #2a6db8; }
+  .btn.danger { color: #e04a4a; border-color: #f0b0b0; }
+  .btn.danger:hover { background: #fff0f0; }
+
+  /* Detail modal */
+  .detail-title { font-size: 16px; font-weight: 600; margin-bottom: 10px; }
+  .detail-row { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--text-muted); margin-bottom: 6px; }
+  .detail-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .detail-memo { background: #f5f5f3; border-radius: var(--radius-sm); padding: 8px 10px; font-size: 13px; color: var(--text); line-height: 1.5; margin-top: 8px; }
+
+  /* Loading */
+  #loading { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 500; flex-direction: column; gap: 12px; }
+  .spinner { width: 28px; height: 28px; border: 3px solid var(--border); border-top-color: #378add; border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Config screen */
+  #config-screen { display: none; position: fixed; inset: 0; background: var(--bg); z-index: 400; padding: 40px 20px; }
+  #config-screen.show { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .config-box { background: var(--surface); border-radius: var(--radius); padding: 28px; width: 100%; max-width: 440px; border: 1px solid var(--border); }
+  .config-box h1 { font-size: 20px; font-weight: 600; margin-bottom: 6px; }
+  .config-box p { font-size: 13px; color: var(--text-muted); line-height: 1.6; margin-bottom: 20px; }
+  .config-box ol { font-size: 13px; color: var(--text-muted); line-height: 2; padding-left: 18px; margin-bottom: 20px; }
+  .config-box ol li a { color: #378add; }
+  .config-box .field input { font-size: 13px; font-family: monospace; }
+  .config-note { font-size: 11px; color: var(--text-faint); margin-top: 6px; line-height: 1.6; }
+
+  @media (max-width: 520px) {
+    .day-cell { min-height: 64px; }
+    .ev-chip { font-size: 9px; }
+    .month-label { font-size: 17px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="loading"><div class="spinner"></div><span style="font-size:13px;color:#888">연결 중...</span></div>
+
+<!-- Firebase 설정 화면 -->
+<div id="config-screen">
+  <div class="config-box">
+    <h1>🏠 우리 가족 달력</h1>
+    <p>처음 한 번만 Firebase 설정이 필요해요. 아래 순서대로 따라해 주세요.</p>
+    <ol>
+      <li><a href="https://console.firebase.google.com" target="_blank">Firebase Console</a> 접속 → 새 프로젝트 만들기</li>
+      <li>프로젝트 생성 후 <strong>Realtime Database</strong> 메뉴 클릭</li>
+      <li>데이터베이스 만들기 → <strong>테스트 모드</strong> 선택</li>
+      <li>프로젝트 설정(⚙️) → 내 앱 → 웹 앱 추가 → 설정값 복사</li>
+      <li>아래에 <strong>데이터베이스 URL</strong>만 붙여넣기</li>
+    </ol>
+    <div class="field">
+      <label>Firebase 데이터베이스 URL</label>
+      <input type="text" id="cfg-db-url" placeholder="https://your-project-default-rtdb.firebaseio.com" />
+      <div class="config-note">예: https://family-cal-12345-default-rtdb.firebaseio.com</div>
+    </div>
+    <div class="field" style="margin-top:14px">
+      <label>가족 이름 (달력 제목)</label>
+      <input type="text" id="cfg-family-name" placeholder="우리 가족" value="우리 가족" />
+    </div>
+    <div style="margin-top:16px">
+      <button class="btn primary" style="width:100%;padding:11px" onclick="saveConfig()">저장하고 시작하기</button>
+    </div>
+    <div class="config-note" style="margin-top:12px;text-align:center">설정값은 이 기기에만 저장되며, 다른 가족도 동일하게 한 번씩 설정하면 돼요.</div>
+  </div>
+</div>
+
+<!-- 메인 앱 -->
+<div class="app" id="main-app" style="display:none">
+  <div class="top-bar">
+    <div class="month-nav">
+      <button class="nav-btn" onclick="changeMonth(-1)">&#8249;</button>
+      <span class="month-label" id="monthLabel"></span>
+      <button class="nav-btn" onclick="changeMonth(1)">&#8250;</button>
+      <button class="today-btn" onclick="goToday()">오늘</button>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn" onclick="openSettings()" title="설정" style="padding:0 10px;height:34px;font-size:18px">⚙️</button>
+    </div>
+  </div>
+
+  <div class="members-bar" id="membersBar"></div>
+
+  <div class="weekdays">
+    <div class="wday">일</div><div class="wday">월</div><div class="wday">화</div>
+    <div class="wday">수</div><div class="wday">목</div><div class="wday">금</div><div class="wday">토</div>
+  </div>
+  <div class="cal-grid" id="calGrid"></div>
+</div>
+
+<!-- 일정 추가/수정 모달 -->
+<div class="overlay hidden" id="addOverlay">
+  <div class="modal">
+    <h2 id="addModalTitle">일정 추가</h2>
+    <div class="field">
+      <label>제목 *</label>
+      <input type="text" id="evTitle" placeholder="일정 이름" />
+    </div>
+    <div class="field">
+      <label>날짜 *</label>
+      <input type="date" id="evDate" />
+    </div>
+    <div class="field">
+      <label>구성원</label>
+      <select id="evMember"></select>
+    </div>
+    <div class="field">
+      <label>메모</label>
+      <textarea id="evMemo" placeholder="메모 (선택사항)"></textarea>
+    </div>
+    <div class="field">
+      <div class="repeat-row">
+        <input type="checkbox" id="evRepeat" onchange="toggleRepeatSel()" />
+        <label for="evRepeat">반복 일정</label>
+        <select id="evRepeatType" style="display:none">
+          <option value="weekly">매주</option>
+          <option value="monthly">매월 같은 날</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn" onclick="closeAdd()">취소</button>
+      <button class="btn primary" onclick="saveEvent()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 일정 상세 모달 -->
+<div class="overlay hidden" id="detailOverlay">
+  <div class="modal">
+    <div class="detail-title" id="detTitle"></div>
+    <div class="detail-row"><div class="detail-dot" id="detDot"></div><span id="detMember"></span><span style="margin-left:8px" id="detDate"></span></div>
+    <div id="detRepeat" style="display:none" class="detail-row">🔁 <span id="detRepeatText"></span></div>
+    <div id="detMemo" class="detail-memo" style="display:none"></div>
+    <div class="modal-btns">
+      <button class="btn danger" id="btnDel">삭제</button>
+      <button class="btn" id="btnEdit">수정</button>
+      <button class="btn" onclick="closeDetail()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 설정 모달 -->
+<div class="overlay hidden" id="settingsOverlay">
+  <div class="modal">
+    <h2>설정</h2>
+    <div class="field">
+      <label>가족 이름</label>
+      <input type="text" id="setFamilyName" />
+    </div>
+    <div style="margin-top:16px">
+      <div style="font-size:13px;font-weight:500;margin-bottom:8px">구성원 관리</div>
+      <div id="membersList"></div>
+      <button class="btn" style="margin-top:8px;font-size:12px" onclick="addMemberRow()">+ 구성원 추가</button>
+    </div>
+    <div class="modal-btns">
+      <button class="btn danger" onclick="resetConfig()">초기화</button>
+      <button class="btn" onclick="closeSettings()">취소</button>
+      <button class="btn primary" onclick="saveSettings()">저장</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- Firebase SDK -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, onValue, push, set, remove, update } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+// ── Config ──────────────────────────────────────────────
+const LS_KEY = 'fam_cal_config';
+
+let db = null;
+let eventsRef = null;
+let allEvents = {};
+
+let cur = new Date();
+let activeMembers = new Set();
+let members = [];
+let editingId = null;
+
+function loadConfig() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY)) || null; } catch { return null; }
+}
+function saveConfigLS(cfg) {
+  localStorage.setItem(LS_KEY, JSON.stringify(cfg));
+}
+
+function fmt(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function todayStr() { return fmt(new Date()); }
+
+// ── Toast ────────────────────────────────────────────────
+window.showToast = function(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+};
+
+// ── Init ─────────────────────────────────────────────────
+const cfg = loadConfig();
+if (!cfg || !cfg.dbUrl) {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('config-screen').classList.add('show');
+} else {
+  initFirebase(cfg);
+}
+
+window.saveConfig = function() {
+  const dbUrl = document.getElementById('cfg-db-url').value.trim();
+  const familyName = document.getElementById('cfg-family-name').value.trim() || '우리 가족';
+  if (!dbUrl || !dbUrl.startsWith('https://')) { showToast('데이터베이스 URL을 올바르게 입력해 주세요'); return; }
+  const cfg = {
+    dbUrl,
+    familyName,
+    members: [
+      { name: '아빠', color: '#378ADD', bg: '#E6F1FB', tc: '#0C447C' },
+      { name: '엄마', color: '#D4537E', bg: '#FBEAF0', tc: '#72243E' },
+      { name: '자녀1', color: '#1D9E75', bg: '#E1F5EE', tc: '#085041' },
+      { name: '자녀2', color: '#BA7517', bg: '#FAEEDA', tc: '#633806' },
+      { name: '전체', color: '#888780', bg: '#F1EFE8', tc: '#2C2C2A' },
+    ]
+  };
+  saveConfigLS(cfg);
+  document.getElementById('config-screen').classList.remove('show');
+  document.getElementById('loading').style.display = 'flex';
+  initFirebase(cfg);
+};
+
+function initFirebase(cfg) {
+  members = cfg.members || [];
+  activeMembers = new Set(members.map(m => m.name));
+  document.title = (cfg.familyName || '우리 가족') + ' 달력';
+
+  try {
+    const app = initializeApp({ databaseURL: cfg.dbUrl }, 'family-cal');
+    db = getDatabase(app);
+    eventsRef = ref(db, 'events');
+    onValue(eventsRef, snap => {
+      allEvents = snap.val() || {};
+      renderAll();
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('main-app').style.display = 'block';
+    }, err => {
+      document.getElementById('loading').style.display = 'none';
+      showToast('Firebase 연결 실패: ' + err.message);
+      document.getElementById('config-screen').classList.add('show');
+    });
+  } catch(e) {
+    document.getElementById('loading').style.display = 'none';
+    showToast('설정 오류: ' + e.message);
+    document.getElementById('config-screen').classList.add('show');
+  }
+}
+
+// ── Render ───────────────────────────────────────────────
+function getMember(name) { return members.find(m => m.name === name) || { color: '#888', bg: '#eee', tc: '#444' }; }
+
+function renderAll() {
+  renderMembersBar();
+  renderGrid();
+}
+
+function renderMembersBar() {
+  const bar = document.getElementById('membersBar');
+  bar.innerHTML = members.map(m => `
+    <div class="m-pill ${activeMembers.has(m.name)?'':'off'}"
+      style="background:${m.bg};border-color:${m.color};color:${m.tc}"
+      onclick="toggleMember('${m.name}')">
+      <div class="m-dot" style="background:${m.color}"></div>${m.name}
+    </div>`).join('');
+}
+
+window.toggleMember = function(name) {
+  if (activeMembers.has(name)) activeMembers.delete(name); else activeMembers.add(name);
+  renderMembersBar(); renderGrid();
+};
+
+function getEventsForDate(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const dow = d.getDay(), dom = d.getDate();
+  return Object.entries(allEvents).filter(([id, e]) => {
+    if (!activeMembers.has(e.member)) return false;
+    if (e.date === dateStr) return true;
+    const ed = new Date(e.date + 'T00:00:00');
+    if (e.repeat === 'weekly' && ed.getDay() === dow && d >= ed) return true;
+    if (e.repeat === 'monthly' && ed.getDate() === dom && d >= ed) return true;
+    return false;
+  }).map(([id, e]) => ({ id, ...e }));
+}
+
+function renderGrid() {
+  const y = cur.getFullYear(), mo = cur.getMonth();
+  document.getElementById('monthLabel').textContent = `${y}년 ${mo+1}월`;
+  const first = new Date(y, mo, 1), last = new Date(y, mo+1, 0);
+  const startDow = first.getDay();
+  const cells = [];
+  for (let i = 0; i < startDow; i++) cells.push({ date: fmt(new Date(y, mo, -startDow+i+1)), other: true });
+  for (let d = 1; d <= last.getDate(); d++) cells.push({ date: fmt(new Date(y, mo, d)), other: false });
+  const rem = 7 - (cells.length % 7); if (rem < 7) for (let i = 1; i <= rem; i++) cells.push({ date: fmt(new Date(y, mo+1, i)), other: true });
+  const td = todayStr();
+
+  document.getElementById('calGrid').innerHTML = cells.map(c => {
+    const evs = getEventsForDate(c.date);
+    const dayNum = parseInt(c.date.split('-')[2]);
+    const isToday = c.date === td && !c.other;
+    return `<div class="day-cell${c.other?' other':''}${isToday?' is-today':''}" onclick="clickDay('${c.date}')">
+      <div class="day-num">${dayNum}</div>
+      <div>
+        ${evs.slice(0,3).map(e => {
+          const m = getMember(e.member);
+          return `<span class="ev-chip" style="background:${m.bg};color:${m.tc}"
+            onclick="openDetail(event,'${e.id}','${c.date}')">${e.repeat?'↻ ':''}${e.title}</span>`;
+        }).join('')}
+        ${evs.length > 3 ? `<div class="ev-more">+${evs.length-3}개</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Month nav ────────────────────────────────────────────
+window.changeMonth = function(d) { cur = new Date(cur.getFullYear(), cur.getMonth()+d, 1); renderGrid(); };
+window.goToday = function() { cur = new Date(); renderGrid(); };
+
+// ── Add/Edit modal ───────────────────────────────────────
+window.clickDay = function(date) { openAdd(date); };
+
+function openAdd(date, ev = null) {
+  editingId = ev ? ev.id : null;
+  document.getElementById('addModalTitle').textContent = ev ? '일정 수정' : '일정 추가';
+  document.getElementById('evTitle').value = ev ? ev.title : '';
+  document.getElementById('evDate').value = date;
+  document.getElementById('evMemo').value = ev ? (ev.memo || '') : '';
+  document.getElementById('evRepeat').checked = !!(ev && ev.repeat);
+  const sel = document.getElementById('evRepeatType');
+  sel.style.display = (ev && ev.repeat) ? 'inline' : 'none';
+  if (ev && ev.repeat) sel.value = ev.repeat;
+  const msel = document.getElementById('evMember');
+  msel.innerHTML = members.map(m => `<option value="${m.name}" ${ev&&ev.member===m.name?'selected':''}>${m.name}</option>`).join('');
+  document.getElementById('addOverlay').classList.remove('hidden');
+  setTimeout(() => document.getElementById('evTitle').focus(), 100);
+}
+
+window.toggleRepeatSel = function() {
+  const c = document.getElementById('evRepeat').checked;
+  document.getElementById('evRepeatType').style.display = c ? 'inline' : 'none';
+};
+
+window.closeAdd = function() { document.getElementById('addOverlay').classList.add('hidden'); editingId = null; };
+
+window.saveEvent = async function() {
+  const title = document.getElementById('evTitle').value.trim();
+  if (!title) { showToast('제목을 입력해 주세요'); return; }
+  const date = document.getElementById('evDate').value;
+  if (!date) { showToast('날짜를 선택해 주세요'); return; }
+  const ev = {
+    title,
+    date,
+    member: document.getElementById('evMember').value,
+    memo: document.getElementById('evMemo').value.trim(),
+    repeat: document.getElementById('evRepeat').checked ? document.getElementById('evRepeatType').value : null,
+    updatedAt: Date.now()
+  };
+  try {
+    if (editingId) {
+      await update(ref(db, 'events/' + editingId), ev);
+      showToast('일정이 수정됐어요');
+    } else {
+      await push(eventsRef, ev);
+      showToast('일정이 추가됐어요');
+    }
+    closeAdd();
+  } catch(e) { showToast('저장 실패: ' + e.message); }
+};
+
+// ── Detail modal ─────────────────────────────────────────
+window.openDetail = function(e, id, dateStr) {
+  e.stopPropagation();
+  const ev = allEvents[id]; if (!ev) return;
+  const m = getMember(ev.member);
+  document.getElementById('detTitle').textContent = ev.title;
+  document.getElementById('detDot').style.background = m.color;
+  document.getElementById('detMember').textContent = ev.member;
+  document.getElementById('detDate').textContent = dateStr;
+  const repEl = document.getElementById('detRepeat');
+  if (ev.repeat) { repEl.style.display='flex'; document.getElementById('detRepeatText').textContent = ev.repeat==='weekly'?'매주 반복':'매월 반복'; }
+  else repEl.style.display = 'none';
+  const memoEl = document.getElementById('detMemo');
+  if (ev.memo) { memoEl.style.display='block'; memoEl.textContent=ev.memo; } else memoEl.style.display='none';
+  document.getElementById('btnDel').onclick = () => deleteEvent(id);
+  document.getElementById('btnEdit').onclick = () => { closeDetail(); openAdd(dateStr, { id, ...ev }); };
+  document.getElementById('detailOverlay').classList.remove('hidden');
+};
+
+window.closeDetail = function() { document.getElementById('detailOverlay').classList.add('hidden'); };
+
+window.deleteEvent = async function(id) {
+  if (!confirm('이 일정을 삭제할까요?')) return;
+  try {
+    await remove(ref(db, 'events/' + id));
+    showToast('삭제됐어요');
+    closeDetail();
+  } catch(e) { showToast('삭제 실패: ' + e.message); }
+};
+
+// ── Settings ─────────────────────────────────────────────
+const COLOR_OPTIONS = [
+  { color: '#378ADD', bg: '#E6F1FB', tc: '#0C447C' },
+  { color: '#D4537E', bg: '#FBEAF0', tc: '#72243E' },
+  { color: '#1D9E75', bg: '#E1F5EE', tc: '#085041' },
+  { color: '#BA7517', bg: '#FAEEDA', tc: '#633806' },
+  { color: '#888780', bg: '#F1EFE8', tc: '#2C2C2A' },
+  { color: '#E24B4A', bg: '#FCEBEB', tc: '#501313' },
+  { color: '#7F77DD', bg: '#EEEDFE', tc: '#26215C' },
+];
+
+window.openSettings = function() {
+  const cfg = loadConfig();
+  document.getElementById('setFamilyName').value = cfg.familyName || '우리 가족';
+  renderMembersList();
+  document.getElementById('settingsOverlay').classList.remove('hidden');
+};
+
+function renderMembersList() {
+  const cfg = loadConfig();
+  const list = document.getElementById('membersList');
+  list.innerHTML = (cfg.members || []).map((m, i) => `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <div style="width:14px;height:14px;border-radius:50%;background:${m.color};flex-shrink:0"></div>
+      <input type="text" value="${m.name}" id="mn-${i}" style="flex:1;font-size:13px;padding:5px 8px;border:1px solid #ddd;border-radius:6px" />
+      <button onclick="removeMember(${i})" style="border:none;background:none;color:#e04a4a;cursor:pointer;font-size:16px">×</button>
+    </div>`).join('');
+}
+
+window.addMemberRow = function() {
+  const cfg = loadConfig();
+  const used = (cfg.members||[]).length;
+  const col = COLOR_OPTIONS[used % COLOR_OPTIONS.length];
+  cfg.members = [...(cfg.members||[]), { name: '새 구성원', ...col }];
+  saveConfigLS(cfg);
+  renderMembersList();
+};
+
+window.removeMember = function(i) {
+  const cfg = loadConfig();
+  cfg.members.splice(i, 1);
+  saveConfigLS(cfg);
+  renderMembersList();
+};
+
+window.closeSettings = function() { document.getElementById('settingsOverlay').classList.add('hidden'); };
+
+window.saveSettings = function() {
+  const cfg = loadConfig();
+  cfg.familyName = document.getElementById('setFamilyName').value.trim() || '우리 가족';
+  (cfg.members||[]).forEach((m, i) => {
+    const inp = document.getElementById('mn-'+i);
+    if (inp) m.name = inp.value.trim() || m.name;
+  });
+  saveConfigLS(cfg);
+  members = cfg.members;
+  activeMembers = new Set(members.map(m => m.name));
+  document.title = cfg.familyName + ' 달력';
+  closeSettings();
+  renderAll();
+  showToast('설정이 저장됐어요');
+};
+
+window.resetConfig = function() {
+  if (!confirm('설정을 초기화할까요? Firebase URL을 다시 입력해야 해요.')) return;
+  localStorage.removeItem(LS_KEY);
+  location.reload();
+};
+
+// ── Close overlays on bg click ───────────────────────────
+['addOverlay','detailOverlay','settingsOverlay'].forEach(id => {
+  document.getElementById(id).addEventListener('click', function(e) {
+    if (e.target === this) {
+      if (id === 'addOverlay') closeAdd();
+      else if (id === 'detailOverlay') closeDetail();
+      else closeSettings();
+    }
+  });
+});
+</script>
+</body>
+</html>
