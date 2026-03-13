@@ -323,19 +323,34 @@ window.saveConfig = function() {
 };
 
 function initFirebase(cfg) {
-  members = cfg.members || [];
-  activeMembers = new Set(members.map(m => m.name));
   document.title = (cfg.familyName || '우리 가족') + ' 달력';
-
   try {
     const firebaseConfig = { databaseURL: cfg.dbUrl };
     let app;
     try { app = initializeApp(firebaseConfig, 'family-cal'); }
-    catch(e) { app = getApp('family-cal'); }
+    catch(e2) { app = getApp('family-cal'); }
     db = getDatabase(app, cfg.dbUrl);
     eventsRef = ref(db, 'events');
+    let appReady = false;
+
+    onValue(ref(db, 'settings'), snap => {
+      const fbS = snap.val();
+      if (fbS && fbS.members && fbS.members.length > 0) {
+        members = fbS.members;
+        document.title = (fbS.familyName || '우리 가족') + ' 달력';
+        const lc = loadConfig();
+        if (lc) { lc.members = members; lc.familyName = fbS.familyName; saveConfigLS(lc); }
+      } else {
+        members = cfg.members || [];
+        set(ref(db, 'settings'), { familyName: cfg.familyName || '우리 가족', members });
+      }
+      activeMembers = new Set(members.map(m => m.name));
+      if (appReady) renderAll();
+    });
+
     onValue(eventsRef, snap => {
       allEvents = snap.val() || {};
+      appReady = true;
       renderAll();
       document.getElementById('loading').style.display = 'none';
       document.getElementById('main-app').style.display = 'block';
@@ -548,20 +563,20 @@ window.removeMember = function(i) {
 
 window.closeSettings = function() { document.getElementById('settingsOverlay').classList.add('hidden'); };
 
-window.saveSettings = function() {
+window.saveSettings = async function() {
   const cfg = loadConfig();
   cfg.familyName = document.getElementById('setFamilyName').value.trim() || '우리 가족';
   (cfg.members||[]).forEach((m, i) => {
     const inp = document.getElementById('mn-'+i);
     if (inp) m.name = inp.value.trim() || m.name;
   });
-  saveConfigLS(cfg);
-  members = cfg.members;
-  activeMembers = new Set(members.map(m => m.name));
-  document.title = cfg.familyName + ' 달력';
-  closeSettings();
-  renderAll();
-  showToast('설정이 저장됐어요');
+  try {
+    // Firebase에 저장 → onValue 리스너가 자동으로 모든 기기에 반영
+    await set(ref(db, 'settings'), { familyName: cfg.familyName, members: cfg.members });
+    saveConfigLS(cfg);
+    closeSettings();
+    showToast('설정이 모든 가족 기기에 동기화됐어요');
+  } catch(e) { showToast('저장 실패: ' + e.message); }
 };
 
 window.resetConfig = function() {
