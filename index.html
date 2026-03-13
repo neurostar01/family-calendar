@@ -26,7 +26,7 @@
   #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
   /* Layout */
-  .app { max-width: 800px; margin: 0 auto; padding: 20px 16px 60px; }
+  .app { max-width: 100%; margin: 0 auto; padding: 20px 24px 60px; }
 
   /* Header */
   .top-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; gap: 12px; flex-wrap: wrap; }
@@ -50,8 +50,8 @@
   .wday:first-child { color: #e04a4a; }
   .wday:last-child { color: #378add; }
 
-  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
-  .day-cell { min-height: 90px; background: var(--surface); border-radius: var(--radius-sm); padding: 6px 5px 5px; cursor: pointer; border: 1px solid var(--border); transition: border-color 0.15s; position: relative; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .day-cell { min-height: 120px; background: var(--surface); border-radius: var(--radius-sm); padding: 8px 7px 6px; cursor: pointer; border: 1px solid var(--border); transition: border-color 0.15s; position: relative; }
   .day-cell:hover { border-color: var(--border-strong); }
   .day-cell.other { background: #f3f3f1; }
   .day-cell.other .day-num { color: var(--text-faint); }
@@ -114,10 +114,15 @@
   .config-box .field input { font-size: 13px; font-family: monospace; }
   .config-note { font-size: 11px; color: var(--text-faint); margin-top: 6px; line-height: 1.6; }
 
-  @media (max-width: 520px) {
-    .day-cell { min-height: 64px; }
-    .ev-chip { font-size: 9px; }
+  @media (max-width: 600px) {
+    .app { padding: 12px 8px 60px; }
+    .cal-grid { gap: 2px; }
+    .day-cell { min-height: 72px; padding: 5px 4px; }
+    .ev-chip { font-size: 9px; padding: 2px 4px; }
     .month-label { font-size: 17px; }
+    .members-bar { gap: 4px; }
+    .m-pill { padding: 4px 8px; font-size: 11px; }
+    .day-num { font-size: 11px; width: 20px; height: 20px; }
   }
 </style>
 </head>
@@ -253,7 +258,7 @@
 
 <!-- Firebase SDK -->
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { initializeApp, getApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getDatabase, ref, onValue, push, set, remove, update } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 // ── Config ──────────────────────────────────────────────
@@ -323,8 +328,11 @@ function initFirebase(cfg) {
   document.title = (cfg.familyName || '우리 가족') + ' 달력';
 
   try {
-    const app = initializeApp({ databaseURL: cfg.dbUrl }, 'family-cal');
-    db = getDatabase(app);
+    const firebaseConfig = { databaseURL: cfg.dbUrl };
+    let app;
+    try { app = initializeApp(firebaseConfig, 'family-cal'); }
+    catch(e) { app = getApp('family-cal'); }
+    db = getDatabase(app, cfg.dbUrl);
     eventsRef = ref(db, 'events');
     onValue(eventsRef, snap => {
       allEvents = snap.val() || {};
