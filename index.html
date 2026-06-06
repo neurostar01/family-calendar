@@ -36,21 +36,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
 .wday:first-child{color:#e04a4a}
 .wday:last-child{color:#378add}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:0;border-left:1px solid #e8e8e6;border-top:1px solid #e8e8e6}
-.day-cell{min-height:130px;background:#fff;padding:7px 5px 5px;cursor:pointer;border-right:1px solid #e8e8e6;border-bottom:1px solid #e8e8e6;position:relative;overflow:visible}
+.day-cell{min-height:150px;background:#fff;padding:8px 6px 6px;cursor:pointer;border-right:1px solid #e8e8e6;border-bottom:1px solid #e8e8e6;position:relative;overflow:visible}
 .day-cell:hover{background:#fafaf8}
 .day-cell.other{background:#f6f6f4}
 .day-cell.other .day-num{color:#ccc}
 .day-cell.is-today{background:#f0f7ff}
-.day-num{font-size:14px;width:26px;height:26px;display:flex;align-items:center;justify-content:center;color:#999;margin-bottom:2px;font-weight:600;border-radius:50%;flex-shrink:0}
+.day-num{font-size:17px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;color:#999;margin-bottom:3px;font-weight:700;border-radius:50%;flex-shrink:0}
 .day-cell.is-today .day-num{background:#378add;color:#fff !important}
 .day-cell:nth-child(7n+1):not(.other) .day-num{color:#e04a4a}
 .day-cell:nth-child(7n):not(.other) .day-num{color:#378add}
 .day-header{display:flex;align-items:center;gap:3px;margin-bottom:2px}
 .day-stickers{display:flex;gap:1px;flex-wrap:wrap}
-.sticker-sm{font-size:13px;line-height:1}
-.ev-layer{position:absolute;left:0;right:0;top:34px}
-.ev-row{height:21px;position:relative;margin-bottom:2px}
-.ev-block{position:absolute;height:19px;border-radius:3px;font-size:12px;font-weight:600;display:flex;align-items:center;padding:0 6px;white-space:nowrap;overflow:hidden;cursor:pointer;z-index:1;top:0}
+.sticker-sm{font-size:15px;line-height:1}
+.ev-layer{position:absolute;left:0;right:0;top:40px}
+.ev-row{height:24px;position:relative;margin-bottom:2px}
+.ev-block{position:absolute;height:22px;border-radius:4px;font-size:14px;font-weight:600;display:flex;align-items:center;padding:0 7px;white-space:nowrap;overflow:hidden;cursor:pointer;z-index:1;top:0}
 .ev-block:hover{filter:brightness(.93);z-index:2}
 .ev-block.start{border-radius:8px 3px 3px 8px}
 .ev-block.end{border-radius:3px 8px 8px 3px}
@@ -144,13 +144,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 @media(max-width:600px){
   .app{padding:10px 8px 60px}
-  .day-cell{min-height:92px;padding:5px 3px 3px}
-  .ev-block{font-size:11px;height:16px;padding:0 4px}
-  .ev-row{height:18px;margin-bottom:1px}
-  .ev-layer{top:30px}
+  .day-cell{min-height:110px;padding:6px 3px 3px}
+  .ev-block{font-size:13px;height:19px;padding:0 5px}
+  .ev-row{height:21px;margin-bottom:1px}
+  .ev-layer{top:34px}
   .month-label{font-size:19px}
   .m-pill{font-size:13px;padding:6px 12px}
-  .day-num{font-size:13px;width:22px;height:22px}
+  .day-num{font-size:15px;width:26px;height:26px}
   .bottom-sections{grid-template-columns:1fr}
   .evlist-date{width:84px;font-size:11px}
 }
