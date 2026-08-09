@@ -303,7 +303,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
       <button class="btn" style="font-size:12px;margin-top:4px" onclick="addMember()">+ 구성원 추가</button>
     </div>
     <div class="modal-btns">
-      <button class="btn danger" onclick="resetApp()">초기화</button>
+      <button class="btn" onclick="resetApp()">새로고침</button>
       <button class="btn" onclick="closeSettings()">취소</button>
       <button class="btn primary" onclick="saveSettings()">저장</button>
     </div>
@@ -362,12 +362,12 @@ function saveLS(d){localStorage.setItem(LS_KEY,JSON.stringify(d));}
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400);}
 function dateToMs(s){return new Date(s+'T00:00:00').getTime();}
 
-// ── 초기화
-const lsCfg=loadLS();
-if(!lsCfg||!lsCfg.dbUrl){
-  document.getElementById('loading').style.display='none';
-  document.getElementById('config-screen').classList.add('show');
-}else{startApp(lsCfg);}
+// ── 가족 공용 설정 (모든 기기 공통)
+const FAMILY_DB_URL='https://family-calendar-7db42-default-rtdb.asia-southeast1.firebasedatabase.app';
+const FAMILY_NAME='우리 가족';
+
+// ── 초기화 (설정 화면 없이 바로 시작)
+startApp({dbUrl:FAMILY_DB_URL,familyName:FAMILY_NAME});
 
 window.saveConfig=function(){
   const dbUrl=document.getElementById('cfg-url').value.trim();
@@ -378,6 +378,16 @@ window.saveConfig=function(){
   document.getElementById('loading').style.display='flex';
   startApp({dbUrl,familyName});
 };
+
+function showConnError(msg){
+  const box=document.getElementById('config-screen');
+  box.querySelector('.config-box').innerHTML=
+    '<h1>⚠️ 연결에 실패했어요</h1>'+
+    '<p>인터넷 연결을 확인한 뒤 새로고침해 주세요.</p>'+
+    '<p style="font-size:11px;color:#ccc">'+msg+'</p>'+
+    '<button class="btn primary" style="width:100%;padding:11px;margin-top:6px;font-size:14px" onclick="location.reload()">새로고침</button>';
+  box.classList.add('show');
+}
 
 function startApp(cfg){
   try{
@@ -408,7 +418,7 @@ function startApp(cfg){
     },err=>{
       document.getElementById('loading').style.display='none';
       toast('연결 실패: '+err.message);
-      document.getElementById('config-screen').classList.add('show');
+      showConnError(err.message);
     });
 
     // 메모 실시간 구독 (월별)
@@ -426,7 +436,7 @@ function startApp(cfg){
   }catch(e){
     document.getElementById('loading').style.display='none';
     toast('오류: '+e.message);
-    document.getElementById('config-screen').classList.add('show');
+    showConnError(e.message);
   }
 }
 
@@ -807,7 +817,7 @@ window.saveSettings=async()=>{
   try{await set(ref(db,'settings'),{familyName,members:updated});toast('설정이 모든 기기에 동기화됐어요 ✓');closeSettings();}
   catch(e){toast('저장 실패: '+e.message);}
 };
-window.resetApp=()=>{if(!confirm('초기화하면 Firebase URL을 다시 입력해야 해요. 계속할까요?'))return;localStorage.removeItem(LS_KEY);location.reload();};
+window.resetApp=()=>{if(!confirm('화면을 새로고침할까요?'))return;location.reload();};
 
 ['addOverlay','detOverlay','settingsOverlay'].forEach(id=>{
   document.getElementById(id).addEventListener('click',function(e){
